@@ -1070,7 +1070,7 @@ func TestFindFitAllError(t *testing.T) {
 	}
 
 	if diff := cmp.Diff(len(diagnosis.NodeToStatusMap), len(nodes)); diff != "" {
-		t.Errorf("Unexpected failed status map: (-want, +got): %v", diff)
+		t.Errorf("Unexpected failed status map: (-want, +got): %s", diff)
 	}
 	if diff := cmp.Diff(sets.NewString("MatchFilter"), diagnosis.UnschedulablePlugins); diff != "" {
 		t.Errorf("Unexpected unschedulablePlugins: (-want, +got): %s", diagnosis.UnschedulablePlugins)
