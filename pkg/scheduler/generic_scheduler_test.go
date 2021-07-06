@@ -1017,7 +1017,7 @@ func TestGenericScheduler(t *testing.T) {
 					t.Errorf("Expected err to be FitError: %v, but got %v", wantOK, gotOK)
 				} else if gotOK {
 					if diff := cmp.Diff(gotFitErr, wantFitErr); diff != "" {
-						t.Errorf("Unexpected fitError. (-want,+got):%s", diff)
+						t.Errorf("Unexpected fitError. Want %v, but got %v", wantFitErr, gotFitErr)
 					}
 				}
 			}
@@ -1070,7 +1070,7 @@ func TestFindFitAllError(t *testing.T) {
 	}
 
 	if diff := cmp.Diff(len(diagnosis.NodeToStatusMap), len(nodes)); diff != "" {
-		t.Errorf("Unexpected failed status map: (-want, +got): %s", diff)
+		t.Errorf("Unexpected failed status map: (-want, +got): %v", diff)
 	}
 	if diff := cmp.Diff(sets.NewString("MatchFilter"), diagnosis.UnschedulablePlugins); diff != "" {
 		t.Errorf("Unexpected unschedulablePlugins: (-want, +got): %s", diagnosis.UnschedulablePlugins)
