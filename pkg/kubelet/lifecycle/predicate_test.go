@@ -180,10 +180,16 @@ func newPodWithToleration() *v1.Pod {
 		Spec: v1.PodSpec{
 			Tolerations: []v1.Toleration{
 				{
-					Key:      "test",
-					Operator: v1.TolerationOpEqual,
+					Key:      "test1",
+					Value:    "machine1",
+					Effect:   v1.TaintEffectPreferNoSchedule,
+					Operator: v1.TolerationOpExists,
+				},
+				{
+					Key:      "test2",
 					Value:    "machine1",
 					Effect:   v1.TaintEffectNoSchedule,
+					Operator: v1.TolerationOpExists,
 				},
 			},
 		},
@@ -273,8 +279,12 @@ func TestGeneralPredicates(t *testing.T) {
 				Spec: v1.NodeSpec{
 					Taints: []v1.Taint{
 						{
-							Key:    "test",
+							Key:    "test1",
 							Effect: v1.TaintEffectPreferNoSchedule,
+						},
+						{
+							Key:    "test2",
+							Effect: v1.TaintEffectNoSchedule,
 						},
 					},
 				},
@@ -283,7 +293,7 @@ func TestGeneralPredicates(t *testing.T) {
 			fits:    true,
 			reasons: []PredicateFailureReason{&PredicateFailureError{tainttoleration.Name, tainttoleration.ErrReasonNotMatch}},
 			wErr:    nil,
-			name:    "match Taint and Toleration",
+			name:    "match taint and toleration",
 		},
 	}
 	for _, test := range resourceTests {
