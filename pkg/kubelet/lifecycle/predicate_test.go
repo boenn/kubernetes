@@ -17,6 +17,7 @@ limitations under the License.
 package lifecycle
 
 import (
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/tainttoleration"
 	"reflect"
 	"testing"
 
@@ -66,7 +67,7 @@ func TestRemoveMissingExtendedResources(t *testing.T) {
 			),
 			expectedPod: makeTestPod(
 				v1.ResourceList{"foo.com/bar": quantity}, // Requests
-				v1.ResourceList{}),                       // Limits
+				v1.ResourceList{}), // Limits
 		},
 		{
 			desc: "requests for resources unavailable in node should be removed",
@@ -174,6 +175,21 @@ func newPodWithPort(hostPorts ...int) *v1.Pod {
 	}
 }
 
+func newPodWithToleration() *v1.Pod {
+	return &v1.Pod{
+		Spec: v1.PodSpec{
+			Tolerations: []v1.Toleration{
+				{
+					Key:      "test",
+					Operator: v1.TolerationOpEqual,
+					Value:    "machine1",
+					Effect:   v1.TaintEffectNoSchedule,
+				},
+			},
+		},
+	}
+}
+
 func TestGeneralPredicates(t *testing.T) {
 	resourceTests := []struct {
 		pod      *v1.Pod
@@ -248,6 +264,26 @@ func TestGeneralPredicates(t *testing.T) {
 			wErr:    nil,
 			reasons: []PredicateFailureReason{&PredicateFailureError{nodeports.Name, nodeports.ErrReason}},
 			name:    "hostport conflict",
+		},
+		{
+			pod:      newPodWithToleration(),
+			nodeInfo: schedulerframework.NewNodeInfo(),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "machine1"},
+				Spec: v1.NodeSpec{
+					Taints: []v1.Taint{
+						{
+							Key:    "test",
+							Effect: v1.TaintEffectPreferNoSchedule,
+						},
+					},
+				},
+				Status: v1.NodeStatus{Capacity: makeResources(10, 20, 32, 0, 0, 0).Capacity, Allocatable: makeAllocatableResources(10, 20, 32, 0, 0, 0)},
+			},
+			fits:    true,
+			reasons: []PredicateFailureReason{&PredicateFailureError{tainttoleration.Name, tainttoleration.ErrReasonNotMatch}},
+			wErr:    nil,
+			name:    "match Taint and Toleration",
 		},
 	}
 	for _, test := range resourceTests {

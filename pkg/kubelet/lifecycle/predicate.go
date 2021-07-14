@@ -18,18 +18,20 @@ package lifecycle
 
 import (
 	"fmt"
-
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/component-helpers/scheduling/corev1"
 	v1affinityhelper "k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
-	"k8s.io/klog/v2"
-	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/features"
-	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodename"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeports"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/noderesources"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/tainttoleration"
+
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
+	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
+	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework"
 )
 
 type getNodeAnyWayFuncType func() (*v1.Node, error)
@@ -223,6 +225,11 @@ func (e *PredicateFailureError) GetReason() string {
 
 // GeneralPredicates checks a group of predicates that the kubelet cares about.
 func GeneralPredicates(pod *v1.Pod, nodeInfo *schedulerframework.NodeInfo) ([]PredicateFailureReason, error) {
+	reasons, err := PodCanChooseNode(pod, nodeInfo)
+	return reasons, err
+}
+
+func PodCanChooseNode(pod *v1.Pod, nodeInfo *schedulerframework.NodeInfo) ([]PredicateFailureReason, error) {
 	if nodeInfo.Node() == nil {
 		return nil, fmt.Errorf("node not found")
 	}
@@ -237,7 +244,6 @@ func GeneralPredicates(pod *v1.Pod, nodeInfo *schedulerframework.NodeInfo) ([]Pr
 		})
 	}
 
-	// Ignore parsing errors for backwards compatibility.
 	match, _ := v1affinityhelper.GetRequiredNodeAffinity(pod).Match(nodeInfo.Node())
 	if !match {
 		reasons = append(reasons, &PredicateFailureError{nodeaffinity.Name, nodeaffinity.ErrReasonPod})
@@ -248,6 +254,12 @@ func GeneralPredicates(pod *v1.Pod, nodeInfo *schedulerframework.NodeInfo) ([]Pr
 	if !nodeports.Fits(pod, nodeInfo) {
 		reasons = append(reasons, &PredicateFailureError{nodeports.Name, nodeports.ErrReason})
 	}
-
+	_, isUntolerated := corev1.FindMatchingUntoleratedTaint(nodeInfo.Node().Spec.Taints, pod.Spec.Tolerations, func(t *v1.Taint) bool {
+		// PodToleratesNodeTaints is only interested in NoSchedule and NoExecute taints.
+		return t.Effect == v1.TaintEffectNoSchedule || t.Effect == v1.TaintEffectNoExecute
+	})
+	if isUntolerated {
+		reasons = append(reasons, &PredicateFailureError{tainttoleration.Name, tainttoleration.ErrReasonNotMatch})
+	}
 	return reasons, nil
 }
